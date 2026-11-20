@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pour toi ♥</title>
+<style>
+:root{--nuit:#14061f;--prune:#2d0f45;--rose:#ff4d8d;--blush:#ffd9e8;--or:#ffcf9e}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;overflow:hidden;color:var(--blush);font-family:Georgia,'Times New Roman',serif;
+  background:radial-gradient(ellipse at 50% 30%,var(--prune),var(--nuit) 72%)}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+.ecran{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:24px;transition:opacity 1.4s}
+.cache{opacity:0;pointer-events:none}
+.script{font-family:'Segoe Script','Brush Script MT','Snell Roundhand',cursive}
+#pour{font-size:clamp(1.1rem,4vw,1.5rem);font-style:italic;opacity:.8}
+h1{font-weight:400;font-size:clamp(2.8rem,13vw,6rem);color:var(--blush);text-shadow:0 0 30px var(--rose);margin:4px 0 12px}
+.sous{margin-bottom:36px;font-style:italic;opacity:.85;font-size:clamp(1rem,3.6vw,1.3rem)}
+button{font:inherit;cursor:pointer;border:0;border-radius:999px;padding:14px 36px;font-size:1.1rem;color:#fff;
+  background:linear-gradient(135deg,var(--rose),#c2255c);box-shadow:0 0 28px rgba(255,77,141,.55);
+  transition:transform .2s,left .25s,top .25s}
+button:hover{transform:scale(1.06)}
+button:focus-visible{outline:3px solid var(--or);outline-offset:3px}
+#scene{justify-content:flex-end;padding-bottom:8vh;pointer-events:none}
+#texte{min-height:6.5em;max-width:28em;font-size:clamp(1.15rem,4.3vw,1.6rem);line-height:1.6;transition:opacity 1s}
+#choix{display:none;gap:18px;margin-top:18px;pointer-events:auto}
+#choix .non{background:transparent;border:2px solid var(--rose);box-shadow:none}
+#sign{margin-top:12px;color:var(--or);font-size:1.5rem;opacity:0;transition:opacity 2s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="ecran" id="intro">
+  <div id="pour" class="script">Pour</div>
+  <h1 id="titre" class="script"></h1>
+  <p class="sous">J'ai quelque chose de spécial pour toi.</p>
+  <button id="go">Ouvrir</button>
+</div>
+
+<div class="ecran" id="scene">
+  <p id="texte" style="opacity:0"></p>
+  <div id="choix">
+    <button id="oui">Oui ♥</button>
+    <button id="non" class="non">Non</button>
+  </div>
+  <div id="sign" class="script"></div>
+</div>
+
+<script>
+/* ============ A PERSONNALISER ============ */
+const CONFIG = {
+  nom: 'Djoudjou',
+  signature: 'yamina',
+  messages: [
+    'vghigh amid inigh yhaja.',
+    'thukyayedh amid inigh hemyaghkem and sahhit.',
+    'yella wachu thvedyedh.',
+    'thawayagh away anagh.',
+    'lmuhim nchllh amda3jev daya hm.',
+  ],
+  question: 'thevghidh at qimedh yedunithiw anagh🙂🥹?',
+  oui: 'Merci. Tu viens de me rendre la plus heureuse.',
+};
+/* ========================================= */
+
+const $ = id => document.getElementById(id);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+$('titre').textContent = CONFIG.nom;
+document.title = 'Pour ' + CONFIG.nom + ' ♥';
+
+const cv = $('c'), ctx = cv.getContext('2d');
+let W, H, D = Math.min(devicePixelRatio || 1, 2);
+function resize() {
+  W = innerWidth; H = innerHeight;
+  cv.width = W * D; cv.height = H * D;
+  ctx.setTransform(D, 0, 0, D, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+const heartPt = t => ({
+  x: 16 * Math.sin(t) ** 3,
+  y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
+});
+
+/* étoiles */
+const stars = Array.from({ length: 130 }, () => ({ x: Math.random(), y: Math.random(), r: rnd(.4, 1.6), p: rnd(0, 6.28) }));
+
+/* particules qui formeront le coeur */
+const N = innerWidth < 600 ? 650 : 1000;
+const cols = ['#ff4d8d', '#ff2d6f', '#ff7aa8', '#ffd9e8'];
+const P = Array.from({ length: N }, (_, i) => {
+  const h = heartPt(rnd(0, 6.2832));
+  const k = i % 3 === 0 ? 1 : Math.sqrt(Math.random()) * .95;
+  return { x: rnd(0, W), y: rnd(0, H), vx: rnd(-.3, .3), vy: rnd(-.3, .3),
+           tx: h.x * k, ty: h.y * k, r: rnd(1, 2.6), c: cols[(Math.random() * cols.length) | 0],
+           ph: rnd(0, 6.28), d: rnd(0, 1.6) };
+});
+let assemble = false, tAss = 0, rain = 1;
+
+/* coeurs flottants et éclats */
+const F = [], heartCols = ['#ff4d8d', '#ff7aa8', '#ffd9e8', '#ffcf9e', '#ff2d6f'];
+function ambient() {
+  F.push({ x: rnd(0, W), y: H + 20, vx: rnd(-.3, .3), vy: -rnd(.6, 1.5), s: rnd(12, 30),
+           a: rnd(.25, .7), life: 1, sway: rnd(0, 6.28), c: heartCols[(Math.random() * 5) | 0], g: 0 });
+}
+function burst(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, 6.28), v = rnd(1.5, 6);
+    F.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s: rnd(10, 26), a: 1,
+             life: 1, sway: 0, c: heartCols[(Math.random() * 5) | 0], g: .06 });
+  }
+}
+addEventListener('pointerdown', e => { if (e.target.tagName !== 'BUTTON') burst(e.clientX, e.clientY, 14); });
+
+let time = 0, last = performance.now(), nextAmb = 0;
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, .05); last = now; time += dt;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, W, H);
+
+  for (const s of stars) {
+    ctx.globalAlpha = .35 + .65 * Math.abs(Math.sin(time * .8 + s.p));
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(s.x * W, s.y * H, s.r, s.r);
+  }
+
+  /* coeur de particules */
+  const sc = Math.min(W * .72, H * .42) / 34, cx = W / 2, cy = H * .33;
+  const beat = 1 + .07 * ((Math.sin(time * 3.4) * .5 + .5) ** 10);
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .85;
+  for (const p of P) {
+    if (assemble && time - tAss > p.d) {
+      const gx = cx + p.tx * sc * beat + Math.sin(time * 2 + p.ph) * .8;
+      const gy = cy + p.ty * sc * beat + Math.cos(time * 2 + p.ph) * .8;
+      p.vx += (gx - p.x) * .012; p.vy += (gy - p.y) * .012;
+      p.vx *= .9; p.vy *= .9;
+    } else {
+      p.vx += rnd(-.02, .02); p.vy += rnd(-.02, .02);
+      p.vx *= .99; p.vy *= .99;
+    }
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+    ctx.fillStyle = p.c;
+    ctx.fillRect(p.x, p.y, p.r, p.r);
+  }
+
+  /* coeurs flottants */
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.textAlign = 'center';
+  if (time > nextAmb) { ambient(); nextAmb = time + .35 / rain; }
+  for (let i = F.length - 1; i >= 0; i--) {
+    const f = F[i];
+    f.vy += f.g; f.x += f.vx + Math.sin(time + f.sway) * .4; f.y += f.vy;
+    if (f.g) f.life -= dt * .7;
+    if (f.y < -40 || f.life <= 0) { F.splice(i, 1); continue; }
+    ctx.globalAlpha = f.a * Math.max(f.life, 0);
+    ctx.fillStyle = f.c;
+    ctx.font = f.s + 'px serif';
+    ctx.fillText('♥', f.x, f.y);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* déroulement */
+$('go').onclick = () => {
+  $('intro').classList.add('cache');
+  assemble = true; tAss = time;
+  burst(W / 2, H * .33, 30);
+  setTimeout(jouer, 4500);
+};
+
+async function jouer() {
+  const el = $('texte');
+  for (const m of CONFIG.messages) {
+    el.textContent = m; el.style.opacity = 1;
+    await wait(4200);
+    el.style.opacity = 0;
+    await wait(1100);
+  }
+  el.textContent = CONFIG.question; el.style.opacity = 1;
+  $('choix').style.display = 'flex';
+}
+
+/* le bouton "Non" s'enfuit */
+const non = $('non');
+function fuir() {
+  non.style.position = 'fixed';
+  non.style.left = rnd(10, Math.max(W - 120, 20)) + 'px';
+  non.style.top = rnd(H * .5, H - 70) + 'px';
+}
+non.addEventListener('pointerenter', fuir);
+non.addEventListener('pointerdown', e => { e.preventDefault(); fuir(); });
+
+$('oui').onclick = () => {
+  $('choix').style.display = 'none';
+  $('texte').textContent = CONFIG.oui;
+  $('sign').textContent = '— ' + CONFIG.signature + ' ♥';
+  $('sign').style.opacity = 1;
+  rain = 4;
+  for (let i = 0; i < 9; i++)
+    setTimeout(() => burst(rnd(W * .15, W * .85), rnd(H * .1, H * .5), 45), i * 350);
+};
+</script>
+</body>
+</html>
